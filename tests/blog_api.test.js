@@ -1,12 +1,37 @@
 const supertest = require("supertest");
 const app = require("../app");
 const api = supertest(app);
+const bcrypt = require("bcrypt");
 
 const helper = require("./test_helper");
 
 const mongoose = require("mongoose");
 const Blog = require("../models/blog");
-const { response } = require("../app");
+const User = require("../models/user");
+
+beforeAll(async () => {
+  await User.deleteMany({});
+  console.log("cleared");
+
+  const userObjects = helper.initialUsers.map(async (user) => {
+    const { username, name, password } = user;
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    const newUser = new User({
+      username,
+      name,
+      passwordHash,
+    });
+
+    return newUser.save();
+  });
+
+  await Promise.all(userObjects);
+
+  console.log("users saved");
+});
 
 beforeEach(async () => {
   await Blog.deleteMany({});
@@ -15,7 +40,8 @@ beforeEach(async () => {
   const blogObjects = helper.initialBlogs.map((blog) => new Blog(blog));
   const promiseArray = blogObjects.map((blog) => blog.save());
   await Promise.all(promiseArray);
-  console.log("saved");
+
+  console.log("blogs saved");
 });
 
 describe("when there's some initial blogs saved", () => {
@@ -34,9 +60,34 @@ describe("when there's some initial blogs saved", () => {
     expect(response.body[0].id).toBeDefined();
   });
 });
+
 describe("when adding a blog", () => {
-  test("a valid blog is saved", async () => {
+  test("a valid blog cannot be saved if user is not logged in", async () => {
     const blogsAtStart = await helper.blogsInDb();
+
+    const newBlog = {
+      title: "Go To Statement Considered Harmful",
+      author: "Edsger W. Dijkstra",
+      url: "http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html",
+      likes: 5,
+    };
+
+    await api.post("/api/blogs").send(newBlog).expect(401);
+
+    const blogsAtEnd = await helper.blogsInDb();
+    expect(blogsAtEnd.length).toBe(blogsAtStart.length);
+  });
+
+  test("a logged in user can save a valid blog", async () => {
+    const blogsAtStart = await helper.blogsInDb();
+
+    const user = {
+      username: "pongbao",
+      password: "michin-saekki",
+    };
+
+    const loginResponse = await api.post("/api/login").send(user);
+    const token = JSON.parse(loginResponse.text).token;
 
     const newBlog = {
       title: "Go To Statement Considered Harmful",
@@ -48,6 +99,7 @@ describe("when adding a blog", () => {
     const response = await api
       .post("/api/blogs")
       .send(newBlog)
+      .set("Authorization", `Bearer ${token}`)
       .expect(201)
       .expect("Content-Type", /application\/json/);
 
@@ -63,6 +115,14 @@ describe("when adding a blog", () => {
   });
 
   test("a blog with an empty like will default to zero", async () => {
+    const user = {
+      username: "pongbao",
+      password: "michin-saekki",
+    };
+
+    const loginResponse = await api.post("/api/login").send(user);
+    const token = JSON.parse(loginResponse.text).token;
+
     const newBlog = {
       title: "Go To Statement Considered Harmful",
       author: "Edsger W. Dijkstra",
@@ -72,6 +132,7 @@ describe("when adding a blog", () => {
     const response = await api
       .post("/api/blogs")
       .send(newBlog)
+      .set("Authorization", `Bearer ${token}`)
       .expect(201)
       .expect("Content-Type", /application\/json/);
 
@@ -84,19 +145,35 @@ describe("when adding a blog", () => {
   });
 
   test("a blog with an empty title or url will return an error with a 400 status code", async () => {
+    const user = {
+      username: "pongbao",
+      password: "michin-saekki",
+    };
+
+    const loginResponse = await api.post("/api/login").send(user);
+    const token = JSON.parse(loginResponse.text).token;
+
     const untitledBlog = {
       author: "Edsger W. Dijkstra",
       url: "http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html",
     };
 
-    await api.post("/api/blogs").send(untitledBlog).expect(400);
+    await api
+      .post("/api/blogs")
+      .send(untitledBlog)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(400);
 
     const blogWithEmptyUrl = {
       title: "Go To Statement Considered Harmful",
       author: "Edsger W. Dijkstra",
     };
 
-    await api.post("/api/blogs").send(blogWithEmptyUrl).expect(400);
+    await api
+      .post("/api/blogs")
+      .send(blogWithEmptyUrl)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(400);
   });
 });
 
@@ -144,11 +221,33 @@ describe("for a specific blog", () => {
 });
 
 describe("deletion of a blog", () => {
-  test("succeeds with status code 204 if id is valid", async () => {
+  test("succeeds with status code 204 if id is valid and the user is the owner of the blog", async () => {
+    await Blog.deleteMany({});
+
+    const user = {
+      username: "pongbao",
+      password: "michin-saekki",
+    };
+
+    const loginResponse = await api.post("/api/login").send(user);
+    const token = JSON.parse(loginResponse.text).token;
+
+    const savedBlogs = helper.initialBlogs.map(async (blog) => {
+      await api
+        .post("/api/blogs")
+        .send(blog)
+        .set("Authorization", `Bearer ${token}`);
+    });
+
+    await Promise.all(savedBlogs);
     const blogsAtStart = await helper.blogsInDb();
+
     const blogToDelete = blogsAtStart[0];
 
-    await api.delete(`/api/blogs/${blogToDelete.id}`).expect(204);
+    await api
+      .delete(`/api/blogs/${blogToDelete.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .expect(204);
 
     const blogsAtEnd = await helper.blogsInDb();
 
@@ -158,4 +257,52 @@ describe("deletion of a blog", () => {
 
     expect(titles).not.toContain(blogToDelete.title);
   });
+
+  test("fails with status code 401 if id is valid and the user is not the owner of the blog", async () => {
+    await Blog.deleteMany({});
+
+    const user = {
+      username: "pongbao",
+      password: "michin-saekki",
+    };
+
+    const loginResponse = await api.post("/api/login").send(user);
+    const token = JSON.parse(loginResponse.text).token;
+    const savedBlogs = helper.initialBlogs.map(async (blog) => {
+      await api
+        .post("/api/blogs")
+        .send(blog)
+        .set("Authorization", `Bearer ${token}`);
+    });
+
+    await Promise.all(savedBlogs);
+    const blogsAtStart = await helper.blogsInDb();
+
+    const newUser = {
+      username: "ahde",
+      password: "sheesh-kafel",
+    };
+
+    const newUserLoginResponse = await api.post("/api/login").send(newUser);
+    const newtoken = JSON.parse(newUserLoginResponse.text).token;
+
+    const blogToDelete = blogsAtStart[0];
+
+    await api
+      .delete(`/api/blogs/${blogToDelete.id}`)
+      .set("Authorization", `Bearer ${newtoken}`)
+      .expect(400);
+
+    const blogsAtEnd = await helper.blogsInDb();
+
+    expect(blogsAtEnd).toHaveLength(blogsAtStart.length);
+
+    const titles = blogsAtEnd.map((r) => r.title);
+
+    expect(titles).toContain(blogToDelete.title);
+  });
+});
+
+afterAll(async () => {
+  await mongoose.connection.close();
 });

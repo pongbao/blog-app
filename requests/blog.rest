@@ -1,9 +1,20 @@
 POST http://localhost:3003/api/blogs
 Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InR0YWxnaSIsImlkIjoiNjQxZmZiYzNiYTk4MzhmMzI2OGRjNjEzIiwiaWF0IjoxNjc5ODIxOTIxLCJleHAiOjE2Nzk4MjU1MjF9.jhN9cp4uuxGxxOd0pLJIjy3twGj4R90izbjp-srwpsE
 
 {
-    "title": "Sample",
-    "author": "Writer",
-    "url": "www.sample.com",
-    "likes": 420
+    "title": "Alcohol-Free",
+    "author": "Twice",
+    "url": "www.jyp-twice.com",
+    "likes": 2
 }
+
+###
+DELETE http://localhost:3003/api/blogs/641fd0c7d85b775f6dfff2ff
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InR0YWxnaSIsImlkIjoiNjQxZmZiYzNiYTk4MzhmMzI2OGRjNjEzIiwiaWF0IjoxNjc5ODIxOTIxLCJleHAiOjE2Nzk4MjU1MjF9.jhN9cp4uuxGxxOd0pLJIjy3twGj4R90izbjp-srwpsE
+
+###
+DELETE http://localhost:3003/api/blogs/64200ab977c12d4fd34db941
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InR0YWxnaSIsImlkIjoiNjQxZmZiYzNiYTk4MzhmMzI2OGRjNjEzIiwiaWF0IjoxNjc5ODE3NjgyLCJleHAiOjE2Nzk4MjEyODJ9.bL7TvZe4x7KSzL-wSiTQT6g923kS6QVtR3gx-36t8Mk
