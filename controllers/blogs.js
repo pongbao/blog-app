@@ -50,17 +50,17 @@ blogsRouter.put("/:id", async (request, response) => {
     likes: body.likes,
   };
 
-  const updatedBlog = await Blog.findByIdAndUpdate(request.params.id, blog, {
+  await Blog.findByIdAndUpdate(request.params.id, blog, {
     new: true,
     runValidators: true,
     context: "query",
   });
-
   response.status(204).end();
 });
 
 //  register a middleware only for a specific operation
 blogsRouter.delete("/:id", userExtractor, async (request, response) => {
+  console.log("params", request.params);
   blogToDelete = await Blog.findById(request.params.id);
 
   if (blogToDelete.user.toString() === request.user) {

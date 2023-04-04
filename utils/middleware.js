@@ -30,6 +30,7 @@ const tokenExtractor = (request, response, next) => {
     request.token = authorization.substring(7);
     // return authorization.replace("Bearer ", "");
   }
+
   next();
 };
 
