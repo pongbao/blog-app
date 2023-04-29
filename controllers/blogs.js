@@ -1,6 +1,7 @@
 const blogsRouter = require("express").Router();
 const Blog = require("../models/blog");
 const User = require("../models/user");
+const Comment = require("../models/comment");
 const userExtractor = require("../utils/middleware").userExtractor;
 
 blogsRouter.get("/", async (request, response) => {
@@ -16,6 +17,18 @@ blogsRouter.get("/:id", async (request, response) => {
 
   if (blog) {
     response.json(blog);
+  } else {
+    response.status(404).end();
+  }
+});
+
+blogsRouter.get("/:id/comments", async (request, response) => {
+  const blog = await Blog.findById(request.params.id).populate("comments", {
+    comment: 1,
+  });
+
+  if (blog) {
+    response.json(blog.comments);
   } else {
     response.status(404).end();
   }
@@ -71,6 +84,23 @@ blogsRouter.delete("/:id", userExtractor, async (request, response) => {
       .status(400)
       .send({ error: "only the creator can delete his own blog" });
   }
+});
+
+// add comments to posts
+blogsRouter.post("/:id/comments", async (request, response) => {
+  const body = request.body;
+
+  const blog = await Blog.findById(request.params.id);
+
+  const newComment = new Comment({
+    comment: body.comment,
+  });
+
+  const savedComment = await newComment.save();
+  blog.comments = blog.comments.concat(savedComment._id);
+  await blog.save();
+
+  response.status(201).json(savedComment);
 });
 
 module.exports = blogsRouter;
